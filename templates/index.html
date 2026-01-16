@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .progress-bar { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="bg-[#0d1117] text-gray-300 font-mono p-4 md:p-10">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-800 pb-6 mb-8 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-white tracking-tight">MAC_VIEW_PY</h1>
+                <p id="os_info" class="text-xs text-gray-500 mt-1 uppercase">Loading system info...</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 px-4 py-2 rounded text-xs">
+                <span class="text-gray-500">UPTIME:</span> <span id="uptime" class="text-green-500">00:00:00</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-[#161b22] p-4 rounded-lg border border-gray-800">
+                <p class="text-[10px] text-gray-500 mb-2 uppercase">CPU Usage</p>
+                <p id="cpu_text" class="text-2xl font-bold text-white mb-2">0%</p>
+                <div class="w-full bg-gray-800 h-1.5 rounded-full">
+                    <div id="cpu_bar" class="progress-bar bg-green-500 h-1.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-[#161b22] p-4 rounded-lg border border-gray-800">
+                <p class="text-[10px] text-gray-500 mb-2 uppercase">RAM Usage</p>
+                <p id="ram_text" class="text-2xl font-bold text-white mb-2">0%</p>
+                <div class="w-full bg-gray-800 h-1.5 rounded-full">
+                    <div id="ram_bar" class="progress-bar bg-blue-500 h-1.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-[#161b22] p-4 rounded-lg border border-gray-800">
+                <p class="text-[10px] text-gray-500 mb-2 uppercase">Disk Space</p>
+                <p id="disk_text" class="text-2xl font-bold text-white mb-2">0%</p>
+                <div class="w-full bg-gray-800 h-1.5 rounded-full">
+                    <div id="disk_bar" class="progress-bar bg-purple-500 h-1.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-[#161b22] p-4 rounded-lg border border-gray-800">
+                <p class="text-[10px] text-gray-500 mb-2 uppercase">Net Sent / Recv</p>
+                <p id="net_io" class="text-sm font-bold text-orange-400 mt-2">0 / 0 MB</p>
+                <p id="battery_info" class="text-[10px] text-gray-500 mt-2">Battery: -</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2">
+                <h2 class="text-xs font-bold mb-4 text-gray-500 uppercase tracking-widest border-l-2 border-orange-500 pl-2">Active Processes</h2>
+                <div class="overflow-hidden bg-[#161b22] rounded-lg border border-gray-800">
+                    <table class="w-full text-left text-[11px]">
+                        <thead class="bg-gray-800/50 text-gray-400 uppercase">
+                            <tr>
+                                <th class="p-3">PID</th>
+                                <th class="p-3">Name</th>
+                                <th class="p-3 text-right">CPU%</th>
+                                <th class="p-3 text-right">MEM%</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task_list"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-xs font-bold mb-4 text-gray-500 uppercase tracking-widest border-l-2 border-blue-500 pl-2">Hardware Sensors</h2>
+                <div id="sensor_list" class="space-y-3">
+                    <p class="text-xs text-gray-600">Scanning SMC...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateDashboard() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+
+                document.getElementById('os_info').innerText = data.os_info;
+                document.getElementById('uptime').innerText = data.uptime;
+                
+                document.getElementById('cpu_text').innerText = data.cpu_usage + '%';
+                document.getElementById('cpu_bar').style.width = data.cpu_usage + '%';
+                document.getElementById('ram_text').innerText = data.ram_usage + '%';
+                document.getElementById('ram_bar').style.width = data.ram_usage + '%';
+                document.getElementById('disk_text').innerText = data.disk_usage + '%';
+                document.getElementById('disk_bar').style.width = data.disk_usage + '%';
+                document.getElementById('net_io').innerText = `${data.net_sent} / ${data.net_recv}`;
+                document.getElementById('battery_info').innerText = `Battery: ${data.sensors.battery}`;
+
+                const taskBody = document.getElementById('task_list');
+                taskBody.innerHTML = data.tasks.map(t => `
+                    <tr class="border-b border-gray-800/50 hover:bg-gray-800/30">
+                        <td class="p-3 text-gray-500 font-mono">${t.pid}</td>
+                        <td class="p-3 text-white font-bold">${t.name.substring(0, 20)}</td>
+                        <td class="p-3 text-right text-green-400 font-mono">${t.cpu_percent.toFixed(1)}%</td>
+                        <td class="p-3 text-right text-blue-400 font-mono">${t.memory_percent.toFixed(1)}%</td>
+                    </tr>
+                `).join('');
+
+                const sensorDiv = document.getElementById('sensor_list');
+                let sHtml = '';
+                
+                data.sensors.temperatures.forEach(s => {
+                    sHtml += `<div class="bg-gray-900 p-3 rounded border border-gray-800 flex justify-between">
+                                <span class="text-[10px] text-gray-500">${s.label}</span>
+                                <span class="text-sm font-bold text-orange-500">${s.current}</span>
+                              </div>`;
+                });
+                data.sensors.fans.forEach(f => {
+                    sHtml += `<div class="bg-gray-900 p-3 rounded border border-gray-800 flex justify-between">
+                                <span class="text-[10px] text-gray-500">${f.label}</span>
+                                <span class="text-sm font-bold text-blue-400">${f.current}</span>
+                              </div>`;
+                });
+                
+                if(!sHtml) sHtml = '<p class="text-[10px] text-gray-600 italic text-center py-4 bg-gray-900 rounded border border-dashed border-gray-800">No active sensors detected.<br>Wait or check SMC permissions.</p>';
+                sensorDiv.innerHTML = sHtml;
+
+            } catch (err) {
+                console.error("Fetch Error:", err);
+            }
+        }
+
+        setInterval(updateDashboard, 2000);
+        updateDashboard();
+    </script>
+</body>
+</html>
